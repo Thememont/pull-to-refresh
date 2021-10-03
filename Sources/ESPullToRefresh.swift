@@ -202,6 +202,8 @@ open class ESRefreshHeaderView: ESRefreshComponent {
     open var lastRefreshTimestamp: TimeInterval?
     open var refreshIdentifier: String?
     
+    open weak var collaborationScrollView: UIScrollView?
+    
     public convenience init(frame: CGRect, handler: @escaping ESRefreshHandler) {
         self.init(frame: frame)
         self.handler = handler
@@ -232,6 +234,7 @@ open class ESRefreshHeaderView: ESRefreshComponent {
             scrollingTop = (scrollingTop > height + top) ? (height + top) : scrollingTop
             
             scrollView.contentInset.top = scrollingTop
+            collaborationScrollView?.contentInset.top = scrollingTop
             
             return
         }
@@ -249,7 +252,18 @@ open class ESRefreshHeaderView: ESRefreshComponent {
         if offsets < -self.animator.trigger {
             // Reached critical
             if isRefreshing == false && isAutoRefreshing == false {
-                if scrollView.isDragging == false {
+                var shouldStart = true
+                
+                if scrollView.isDragging {
+                    shouldStart = false
+                }
+                
+                if let collaborationScrollView = collaborationScrollView,
+                   collaborationScrollView.isDragging {
+                    shouldStart = false
+                }
+                
+                if shouldStart {
                     // Start to refresh...
                     self.startRefreshing(isAuto: false)
                     self.animator.refresh(view: self, stateDidChange: .refreshing)
@@ -283,6 +297,7 @@ open class ESRefreshHeaderView: ESRefreshComponent {
         
         // stop scroll view bounces for animation
         scrollView.bounces = false
+        collaborationScrollView?.bounces = false
         
         // call super start
         super.start()
@@ -298,14 +313,20 @@ open class ESRefreshHeaderView: ESRefreshComponent {
         // We need to restore previous offset because we will animate scroll view insets and regular scroll view animating is not applied then.
         scrollView.contentInset = insets
         scrollView.contentOffset.y = previousOffset
+        
+        collaborationScrollView?.contentInset = insets
+        collaborationScrollView?.contentOffset.y = previousOffset
+        
         previousOffset -= animator.executeIncremental
         UIView.animate(withDuration: 0.2, delay: 0.0, options: .curveLinear, animations: {
             scrollView.contentOffset.y = -insets.top
+            self.collaborationScrollView?.contentOffset.y = -insets.top
         }, completion: { (finished) in
             self.handler?()
             // un-ignore observer
             self.ignoreObserver(false)
             scrollView.bounces = self.scrollViewBounces
+            self.collaborationScrollView?.bounces = self.scrollViewBounces
         })
         
     }
@@ -323,12 +344,16 @@ open class ESRefreshHeaderView: ESRefreshComponent {
         // Back state
         scrollView.contentInset.top = self.scrollViewInsets.top
         scrollView.contentOffset.y =  self.previousOffset
+        collaborationScrollView?.contentInset.top = self.scrollViewInsets.top
+        collaborationScrollView?.contentOffset.y =  self.previousOffset
         UIView.animate(withDuration: 0.2, delay: 0, options: .curveLinear, animations: {
             scrollView.contentOffset.y = -self.scrollViewInsets.top
+            self.collaborationScrollView?.contentOffset.y = -self.scrollViewInsets.top
             }, completion: { (finished) in
                 self.animator.refresh(view: self, stateDidChange: .pullToRefresh)
                 super.stop()
                 scrollView.contentInset.top = self.scrollViewInsets.top
+                self.collaborationScrollView?.contentInset.top = self.scrollViewInsets.top
                 self.previousOffset = scrollView.contentOffset.y
                 // un-ignore observer
                 self.ignoreObserver(false)
